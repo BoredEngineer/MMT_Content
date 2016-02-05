@@ -45,6 +45,15 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "MMT Add Force At Location -Comp"), Category = "MMT physics sub-stepping")
 	static void MMTAddForceAtLocationComponent(UPrimitiveComponent* Target, const FVector& Force, const FVector& Location);
 
+	/**
+	*	Add a torque to a component. Can apply torque during physics sub-steps.
+	*	@param Target		Component's reference to apply torque to
+	*	@param Torque		Force vector to apply. Magnitude indicates strength of force.
+	*	@param bAccelChange If true, Force is taken as a change in acceleration instead of a physical force (i.e. mass will have no affect).
+	*/
+	UFUNCTION(BlueprintCallable, meta = (DisplayName = "MMT Add Torque -Comp"), Category = "MMT physics sub-stepping")
+	static void MMTAddTorqueComponent(UPrimitiveComponent* Target, const FVector& Torque, bool bAccelChange);
+
 private:
 	static FBodyInstance* GetBodyInstance(UPrimitiveComponent* PrimitiveComponent);
 };

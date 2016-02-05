@@ -47,6 +47,14 @@ void UMMTBPFunctionLibrary::MMTAddForceAtLocationComponent(UPrimitiveComponent *
 	}
 }
 
+// AddTorque to a component using BodyInstance as its valid during physics sub-stepping
+void UMMTBPFunctionLibrary::MMTAddTorqueComponent(UPrimitiveComponent * Target, const FVector & Torque, bool bAccelChange)
+{
+	FBodyInstance* BodyInstance = GetBodyInstance(Target);
+	if (BodyInstance != NULL) {
+		BodyInstance->AddTorque(Torque, false, bAccelChange);
+	}
+}
 
 // Get instance of physics body from component
 FBodyInstance * UMMTBPFunctionLibrary::GetBodyInstance(UPrimitiveComponent * PrimitiveComponent)
