@@ -14,10 +14,11 @@ public:
 	/**
 	*	Get world-space component's transform. BodyInstance is used to retrive transform, its up-to date with physics sub-stepping.
 	*	@param Target	Component's reference to get the transform for
-	*	@return			Component's transform in world space
+	*	@param InSocketName	Optional socket name parameter. Will return socket transform, if socket not found returns component's transform
+	*	@return			Component's or socket's transform in world space
 	*/
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "MMT Get Transform -Comp"), Category = "MMT physics sub-stepping")
-	static FTransform MMTGetTransformComponent(UPrimitiveComponent * Target);
+	static FTransform MMTGetTransformComponent(USceneComponent * Target, FName InSocketName);
 
 	/**
 	*	Get world-space actor's root component transform. BodyInstance is used to retrive transform, its up-to date with physics sub-stepping.
@@ -56,4 +57,5 @@ public:
 
 private:
 	static FBodyInstance* GetBodyInstance(UPrimitiveComponent* PrimitiveComponent);
+	static FTransform GetBodyInstanceTransform(USceneComponent *SceneComponent);
 };
