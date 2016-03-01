@@ -10,21 +10,61 @@ UMMTBPFunctionLibrary::UMMTBPFunctionLibrary(const FObjectInitializer& ObjectIni
 }
 
 // Get Component transform from BodyInstance as its valid during physics sub-stepping
-FTransform UMMTBPFunctionLibrary::MMTGetTransformComponent(UPrimitiveComponent * Target)
-{
-	FBodyInstance* BodyInstance = GetBodyInstance(Target);
-	if (BodyInstance != NULL) {
-		return Target->GetBodyInstance()->GetUnrealWorldTransform();
+FTransform UMMTBPFunctionLibrary::MMTGetTransformComponent(USceneComponent *Target, FName InSocketName = NAME_None) {
+	if (Target == NULL) {
+		return FTransform::Identity;
 	}
-	return FTransform::Identity;
+
+	//Check if socket name is provided and store it's relative transform
+	FTransform SocketRelativeTransform = FTransform::Identity;
+	bool IsSocketRequested = false;
+	if (InSocketName != NAME_None) {
+		SocketRelativeTransform = Target->GetSocketTransform(InSocketName, ERelativeTransformSpace::RTS_Component);
+		//Check if socket transform was found. GetSocketTransform() return transform of the parent when socket is not found.
+		if (SocketRelativeTransform.Equals(Target->GetRelativeTransform()) == false) {
+			//UE_LOG(LogTemp, Warning, TEXT("valid socket requested"));
+			IsSocketRequested = true;
+		}
+	}
+
+	//Check if component has a valid physics body to retrieve world transform. GetBodyInstanceTransform() returns parent transform if component's physics body is invalid.
+	FTransform currentTransform = GetBodyInstanceTransform(Target);
+	FTransform ParentTransform = GetBodyInstanceTransform(Target->GetAttachParent());
+	if ((currentTransform.Equals(ParentTransform) == false) && (currentTransform.Equals(FTransform::Identity) == false)) {
+		//UE_LOG(LogTemp, Warning, TEXT("Debug->return1"));
+		return (IsSocketRequested ? SocketRelativeTransform * currentTransform : currentTransform);
+	}
+
+	//At this point we know that target component doesn't have valid physics body.
+	//We need to find a parent in a chain, with valid physics body and accumulate all relative transforms leading to it.
+	FTransform relativeTransform = Target->GetRelativeTransform();
+	USceneComponent *currentScene = Target;
+
+	while (true) {
+		currentScene = currentScene->GetAttachParent();
+		//We reached the top of hierarchy or current object simulates physics and therefore doesn't have a parent, as such objects are detached from the rest.
+		if (currentScene == NULL) {
+			//UE_LOG(LogTemp, Warning, TEXT("Debug->return2"));
+			return (IsSocketRequested ? SocketRelativeTransform * Target->GetComponentTransform() : Target->GetComponentTransform());
+		}
+		currentTransform = GetBodyInstanceTransform(currentScene);
+		ParentTransform = GetBodyInstanceTransform(currentScene->GetAttachParent());
+		//We found a body in hierarchy which simulates physics. Now we can return final transform.
+		if ((currentTransform.Equals(ParentTransform) == false) && (currentTransform.Equals(FTransform::Identity) == false)) {
+			//UE_LOG(LogTemp, Warning, TEXT("Debug->return3"));
+			return (IsSocketRequested ? SocketRelativeTransform * (relativeTransform * currentTransform) : relativeTransform * currentTransform);
+		}
+		relativeTransform *= currentScene->GetRelativeTransform();
+	}
 }
 
 // Get Actor transform from BodyInstance as its valid during physics sub-stepping
 FTransform UMMTBPFunctionLibrary::MMTGetTransformActor(AActor * Actor)
 {
-	UPrimitiveComponent* ActorRootComponent = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+	//UPrimitiveComponent* ActorRootComponent = Cast<UPrimitiveComponent>(Actor->GetRootComponent());
+	USceneComponent* ActorRootComponent = Actor->GetRootComponent();
 	if (ActorRootComponent != NULL) {
-		return ActorRootComponent->GetBodyInstance()->GetUnrealWorldTransform();
+		return GetBodyInstanceTransform(ActorRootComponent);
 	}
 	return FTransform::Identity;
 }
@@ -63,4 +103,13 @@ FBodyInstance * UMMTBPFunctionLibrary::GetBodyInstance(UPrimitiveComponent * Pri
 		return NULL;
 	}
 	return PrimitiveComponent->GetBodyInstance();
+}
+
+// Get transform from physics body of component
+FTransform UMMTBPFunctionLibrary::GetBodyInstanceTransform(USceneComponent *SceneComponent) {
+	UPrimitiveComponent *primitiveComponent = Cast<UPrimitiveComponent>(SceneComponent);
+	if (primitiveComponent == NULL) {
+		return FTransform::Identity;
+	}
+	return primitiveComponent->GetBodyInstance()->GetUnrealWorldTransform();
 }
