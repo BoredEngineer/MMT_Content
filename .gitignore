@@ -4,9 +4,11 @@
 /DerivedDataCache
 /Intermediate
 /Saved
+/Source
 *.sln
 *.sdf
 *.suo 
+*.opendb
 
 # Windows image file caches
 Thumbs.db
