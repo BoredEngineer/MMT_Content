@@ -1,8 +1,10 @@
 #Unreal Specific Ignores
 /Build
-/Binaries
+/Binaries/Win64/*.exe
+/Binaries/Win64/*.pdb
 /DerivedDataCache
 /Intermediate
+/Plugins/MMT/Intermediate
 /Saved
 /Source
 *.sln
