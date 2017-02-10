@@ -202,6 +202,8 @@ private:
 	//Calculate suspension force and apply to effected body
 	void CalculateAndApplySuspensionForce(const float& DeltaTime);
 
+	void GetDefaultWheelPosition();
+
 	//Draw simple debug lines for suspension traces
 	static void DrawDebugLineTrace(bool bBlockingHit, FVector Start, FVector End, FVector HitPoint, UWorld *WorldRef);
 

@@ -23,6 +23,7 @@ void UMMTSuspensionStack::Initialize()
 		GetNamesForComponentAndParent();
 		GetNamedComponentsReference();
 		PreCalculateParameters();
+		GetDefaultWheelPosition();
 
 		//Line Trace default query parameters, called from here to have valid reference to parent
 		LineTraceQueryParameters.bTraceAsyncScene = false;
@@ -412,4 +413,14 @@ void UMMTSuspensionStack::SetSuspensionForceScale(float NewSuspensionForceScale)
 float UMMTSuspensionStack::GetSuspensionForceScale()
 {
 	return SuspensionForceScale;
+}
+
+
+void UMMTSuspensionStack::GetDefaultWheelPosition()
+{
+	if (IsValid(SweepShapeMeshComponent))
+	{
+		WheelHubPositionLS = SweepShapeMeshComponent->GetRelativeTransform().GetLocation();
+		//WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(SweepShapeMeshComponent->GetComponentTransform().GetLocation());
+	}
 }
