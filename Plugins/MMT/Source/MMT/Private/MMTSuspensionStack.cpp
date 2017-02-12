@@ -424,3 +424,4 @@ void UMMTSuspensionStack::GetDefaultWheelPosition()
 		//WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(SweepShapeMeshComponent->GetComponentTransform().GetLocation());
 	}
 }
+
