@@ -89,7 +89,7 @@ void UMMTFrictionComponent::ResetFrictionPoints()
 }
 
 // Set friction surface linear velocity
-void UMMTFrictionComponent::SetFrictionSurfaceVelocity(const FVector& FrictionSurfaceVel)
+void UMMTFrictionComponent::SetFrictionSurfaceVelocity(FVector FrictionSurfaceVel)
 {
 	FrictionSurfaceVelocity = FrictionSurfaceVel;
 }

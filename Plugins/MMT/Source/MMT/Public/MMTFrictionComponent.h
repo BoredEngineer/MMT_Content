@@ -73,7 +73,7 @@ public:
 	*	@param FrictionSurfaceVel	Linear velocity of the friction surface
 	*/
 	UFUNCTION(BlueprintCallable, Category = "MMT Friction Component")
-	void SetFrictionSurfaceVelocity(const FVector& FrictionSurfaceVel);
+	void SetFrictionSurfaceVelocity(FVector FrictionSurfaceVel = FVector::ZeroVector);
 
 	/**
 	*	Runs calculations on friction component, applies friction force to effected component and returns reaction forces (forces that can effect track or a wheel)
