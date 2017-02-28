@@ -56,21 +56,21 @@ struct FSuspensionStackStruct
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "General", meta = (ToolTip = "Will output debug information on screen"))
 		bool bEnableDebugMode;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "RayCheck mode", meta = (ToolTip = "Default channel for suspension tracing in raycheck mode"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Ray Check mode", meta = (ToolTip = "Default channel for suspension tracing in Ray Check mode"))
 		TEnumAsByte <ECollisionChannel> RayCheckTraceChannel;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (ToolTip = "Can use shape sweep to find suspension compression"))
-		uint32 bCanShapeSweep : 1;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sphere Check mode", meta = (ToolTip = "Can use sphere check to find suspension compression?"))
+		bool bCanSphereCheck;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sphere Check mode", meta = (EditCondition = "bCanSphereCheck", ToolTip = "Default channel for suspension tracing in Sphere Check mode"))
+		TEnumAsByte <ECollisionChannel> SphereCheckTraceChannel;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (EditCondition = "bCanShapeSweep", ToolTip = "Name of the mesh component that will be used for sweep of this suspension stack"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (ToolTip = "Can use shape sweep to find suspension compression?"))
+		bool bCanShapeSweep;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (EditCondition = "bCanShapeSweep", ToolTip = "Name of the mesh component that will be used for shape sweep of this suspension stack"))
 		FString SweepShapeComponentName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Track Simulation mode", meta = (ToolTip = "Can be used for Track Simulation"))
-		uint32 bUsedWithTrackSimulation : 1;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Track Simulation mode", meta = (EditCondition = "bUsedWithTrackSimulation", ToolTip = "Name of the mesh component that will be used for sweep of this suspension stack"))
-		TEnumAsByte <ETraceTypeQuery> TrackSimTraceChannel;
-	
 
 	//Default constructor
 	FSuspensionStackStruct()
@@ -90,10 +90,10 @@ struct FSuspensionStackStruct
 		bGetContactBodyVelocity = false;
 		bEnableDebugMode = false;
 		RayCheckTraceChannel = ECC_Visibility;
+		bCanSphereCheck = false;
+		SphereCheckTraceChannel = ECC_Visibility;
 		bCanShapeSweep = false;
 		SweepShapeComponentName = FString("none");
-		bUsedWithTrackSimulation = false;
-		TrackSimTraceChannel = ETraceTypeQuery::TraceTypeQuery1;
 	}
 
 };

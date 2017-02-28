@@ -153,13 +153,16 @@ private:
 	UPROPERTY()
 		float SuspensionForceScale = 1.0f;
 
-	//Line trace specific
+	//Ray check mode specific
 	FCollisionQueryParams LineTraceQueryParameters;
 	FCollisionResponseParams LineTraceResponseParameters;
 	UPROPERTY()
 		FVector LineTraceOffsetTopLS;
 	UPROPERTY()
 		FVector LineTraceOffsetBottomLS;
+
+	//Sphere check mode specific
+
 	
 	//Variables for recording collision of the wheel and passing data further to friction processing
 	UPROPERTY()
