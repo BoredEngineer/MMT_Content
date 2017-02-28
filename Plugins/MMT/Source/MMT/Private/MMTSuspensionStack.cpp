@@ -31,7 +31,8 @@ void UMMTSuspensionStack::Initialize()
 	SuspensionForceLS = FVector::ZeroVector;
 	SuspensionForceWS = FVector::ZeroVector;
 	SuspensionForceScale = 1.0f;
-	
+	SphereCheckRotator = FQuat();
+
 
 	USceneComponent* TryParent = CastChecked<USceneComponent>(GetOuter());
 	if (IsValid(TryParent))
@@ -49,6 +50,13 @@ void UMMTSuspensionStack::Initialize()
 		LineTraceQueryParameters.bReturnFaceIndex = false;
 		LineTraceQueryParameters.bReturnPhysicalMaterial = true;
 		LineTraceQueryParameters.AddIgnoredActor(ParentComponentRef->GetOwner());
+
+		//Sphere Trace default query parameters, called from here to have valid reference to parent
+		SphereTraceQueryParameters.bTraceAsyncScene = false;
+		SphereTraceQueryParameters.bTraceComplex = false;
+		SphereTraceQueryParameters.bReturnFaceIndex = false;
+		SphereTraceQueryParameters.bReturnPhysicalMaterial = true;
+		SphereTraceQueryParameters.AddIgnoredActor(ParentComponentRef->GetOwner());
 	}
 	else
 	{
@@ -136,6 +144,8 @@ void UMMTSuspensionStack::PreCalculateParameters()
 	//Calculate line trace points in local space, taking into account road wheel radius and tread thickness
 	LineTraceOffsetTopLS = SpringOffsetTopAdjusted + SpringDirectionLocal * (SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness);
 	LineTraceOffsetBottomLS = SpringOffsetBottomAdjusted + SpringDirectionLocal * (SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness);
+
+	SphereCheckShape = FCollisionShape::MakeSphere(SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness);
 }
 
 
@@ -198,31 +208,50 @@ void UMMTSuspensionStack::LineTraceForContact()
 	}
 }
 
-void UMMTSuspensionStack::AsyncLineTraceForContact()
+
+void UMMTSuspensionStack::SphereTraceForContact()
 {
+	//Clean results
+	FHitResult SphereTraceOutHit = FHitResult(ForceInit);
+
 	//Transform points into world space using component's transform
-	FVector LineTraceStart = ReferenceFrameTransform.TransformPosition(LineTraceOffsetTopLS);
-	FVector LineTraceEnd = ReferenceFrameTransform.TransformPosition(LineTraceOffsetBottomLS);
+	FVector SphereTraceStart = ReferenceFrameTransform.TransformPosition(SpringOffsetTopAdjusted);
+	FVector SphereTraceEnd = ReferenceFrameTransform.TransformPosition(SpringOffsetBottomAdjusted);
 
-	//Request async trace
-	ParentComponentRef->GetWorld()->AsyncLineTraceByChannel(EAsyncTraceType::Single ,LineTraceStart, LineTraceEnd, SuspensionSettings.RayCheckTraceChannel, 
-		LineTraceQueryParameters, LineTraceResponseParameters, &TraceDelegate, 0);
-}
-
-//Process async line trace results
-void UMMTSuspensionStack::AsyncTraceDone(const FTraceHandle& TraceHandle, FTraceDatum & TraceData)
-{
-	//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("Got Async trace callback")));
-	//UE_LOG(LogTemp, Warning, TEXT("Got Async trace callback"));
-
-	if (TraceData.OutHits.Num() > 0)
+	//Do sphere trace
+	bContactPointActive = ParentComponentRef->GetWorld()->SweepSingleByChannel(SphereTraceOutHit, SphereTraceStart, SphereTraceEnd, SphereCheckRotator,
+		SuspensionSettings.SphereCheckTraceChannel, SphereCheckShape, SphereTraceQueryParameters, SphereTraceResponseParameters);
+	
+	//Dirty but assumption is that contact information is never used if bContactPointActive is false.
+	if (bContactPointActive)
 	{
-		if (SuspensionSettings.bEnableDebugMode)
+		ContactPointLocation = SphereTraceOutHit.ImpactPoint;
+		ContactPointNormal = SphereTraceOutHit.ImpactNormal;
+		ContactPhysicalMaterial = SphereTraceOutHit.PhysMaterial.Get();
+		SphereCheckLocation = SphereTraceOutHit.Location;
+		
+		if (SuspensionSettings.bGetContactBodyVelocity)
 		{
-			DrawDebugLineTrace(TraceData.OutHits[0].bBlockingHit, TraceData.Start, TraceData.End, TraceData.OutHits[0].ImpactPoint, ParentComponentRef->GetWorld());
+			if (SphereTraceOutHit.Component->IsSimulatingPhysics())
+			{
+				ContactInducedVelocity = SphereTraceOutHit.Component->GetPhysicsLinearVelocityAtPoint(ContactPointLocation);
+			}
+			else
+			{
+				ContactInducedVelocity = SphereTraceOutHit.Component->ComponentVelocity;
+			}
 		}
 	}
-	else{}
+
+	//Draw debug
+	if (SuspensionSettings.bEnableDebugMode)
+	{
+		DrawDebugSphereTrace(bContactPointActive, SphereTraceStart, SphereTraceEnd, SphereCheckLocation, SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness,
+			SphereTraceOutHit.ImpactPoint, ParentComponentRef->GetWorld());
+		//DrawDebugLineTrace(bContactPointActive, LineTraceStart, LineTraceEnd, LineTraceOutHit.ImpactPoint, ParentComponentRef->GetWorld());
+		//DrawDebugString(ParentComponentRef->GetWorld(), ParentComponentRef->GetComponentLocation(), SpringDirectionLocal.ToString(), 0, FColor::Cyan, 0.0f, false);
+	}
+
 }
 
 
@@ -261,13 +290,35 @@ void UMMTSuspensionStack::UpdateWheelHubPosition()
 		
 		if (SuspensionSettings.SimulationMode == ESuspensionSimMode::SphereCheck)
 		{
-			//DoOnce([]() { UE_LOG(...); });
-			if (!bWarningMessageDisplayed)
+			if (SuspensionSettings.bCanSphereCheck)
 			{
-				bWarningMessageDisplayed = true;
-				GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s Sphere Check mode is not implemented"), *ComponentsParentName, *ComponentName));
-				UE_LOG(LogTemp, Warning, TEXT("%s->%s Sphere Check mode is not implemented"), *ComponentsParentName, *ComponentName);
+				SphereTraceForContact();
+
+				if (bContactPointActive)
+				{
+					WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(SphereCheckLocation);
+				}
+				else
+				{
+					//If trace failed wheel hub is assumed to be in lowest possible position of suspension
+					WheelHubPositionLS = SpringOffsetBottomAdjusted;
+				}
+
+				if (SuspensionSettings.bEnableDebugMode)
+				{
+					DrawDebugSphere(ParentComponentRef->GetWorld(), ReferenceFrameTransform.TransformPosition(WheelHubPositionLS), 10.0, 9, FColor::Blue, false, 0.0f, 0, 1.0f);
+				}
 			}
+			else
+			{
+				if (!bWarningMessageDisplayed)
+				{
+					bWarningMessageDisplayed = true;
+					GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s Sphere Check mode is enabled but bCanSphereCheck property is set to false."), *ComponentsParentName, *ComponentName));
+					UE_LOG(LogTemp, Warning, TEXT("%s->%s Sphere Check mode is enabled but bCanSphereCheck property is set to false."), *ComponentsParentName, *ComponentName);
+				}
+			}
+
 		}
 		else
 		{
@@ -348,6 +399,21 @@ void UMMTSuspensionStack::DrawDebugLineTrace(bool bBlockingHit, FVector Start, F
 	else
 	{
 		DrawDebugLine(WorldRef, Start, End, FColor::Yellow, false, 0.0f, 0, 1.0f);
+	}
+}
+
+void UMMTSuspensionStack::DrawDebugSphereTrace(bool bBlockingHit, FVector SphereStart, FVector SphereEnd, FVector SphereCenter, float SphereRadius, FVector HitPoint, UWorld *WorldRef)
+{
+	if (bBlockingHit)
+	{
+		DrawDebugSphere(WorldRef, SphereStart, SphereRadius, 12, FColor::Red, false, 0.0f, 1, 0.25f);
+		DrawDebugSphere(WorldRef, SphereCenter, SphereRadius, 12, FColor::Green, false, 0.0f, 1, 0.25f);
+		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Yellow, false, 0.0f, 0);
+	}
+	else
+	{
+		DrawDebugSphere(WorldRef, SphereStart, SphereRadius, 12, FColor::Yellow, false, 0.0f, 1, 0.25f);
+		DrawDebugSphere(WorldRef, SphereEnd, SphereRadius, 12, FColor::Yellow, false, 0.0f, 1, 0.25f);
 	}
 }
 
@@ -455,3 +521,31 @@ void UMMTSuspensionStack::GetDefaultWheelPosition()
 	}
 }
 
+
+//Functions for async trace, not used but keep them for feature experiments
+void UMMTSuspensionStack::AsyncLineTraceForContact()
+{
+	//Transform points into world space using component's transform
+	FVector LineTraceStart = ReferenceFrameTransform.TransformPosition(LineTraceOffsetTopLS);
+	FVector LineTraceEnd = ReferenceFrameTransform.TransformPosition(LineTraceOffsetBottomLS);
+
+	//Request async trace
+	ParentComponentRef->GetWorld()->AsyncLineTraceByChannel(EAsyncTraceType::Single, LineTraceStart, LineTraceEnd, SuspensionSettings.RayCheckTraceChannel,
+		LineTraceQueryParameters, LineTraceResponseParameters, &TraceDelegate, 0);
+}
+
+//Process async line trace results
+void UMMTSuspensionStack::AsyncTraceDone(const FTraceHandle& TraceHandle, FTraceDatum & TraceData)
+{
+	//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("Got Async trace callback")));
+	//UE_LOG(LogTemp, Warning, TEXT("Got Async trace callback"));
+
+	if (TraceData.OutHits.Num() > 0)
+	{
+		if (SuspensionSettings.bEnableDebugMode)
+		{
+			DrawDebugLineTrace(TraceData.OutHits[0].bBlockingHit, TraceData.Start, TraceData.End, TraceData.OutHits[0].ImpactPoint, ParentComponentRef->GetWorld());
+		}
+	}
+	else {}
+}

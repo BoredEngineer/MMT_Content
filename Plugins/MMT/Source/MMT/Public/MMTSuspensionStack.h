@@ -162,7 +162,13 @@ private:
 		FVector LineTraceOffsetBottomLS;
 
 	//Sphere check mode specific
-
+	FCollisionQueryParams SphereTraceQueryParameters;
+	FCollisionResponseParams SphereTraceResponseParameters;
+	FCollisionShape SphereCheckShape;
+	UPROPERTY()
+		FQuat SphereCheckRotator;
+	UPROPERTY()
+		FVector SphereCheckLocation;
 	
 	//Variables for recording collision of the wheel and passing data further to friction processing
 	UPROPERTY()
@@ -194,6 +200,9 @@ private:
 	void LineTraceForContact();
 	void AsyncLineTraceForContact();
 
+	//Find wheel hub position and contact information for Sphere Check suspension mode
+	void SphereTraceForContact();
+
 	//Calculate suspension force and apply to effected body
 	void CalculateAndApplySuspensionForce(const float& DeltaTime);
 
@@ -201,7 +210,10 @@ private:
 
 	//Draw simple debug lines for suspension traces
 	static void DrawDebugLineTrace(bool bBlockingHit, FVector Start, FVector End, FVector HitPoint, UWorld *WorldRef);
-
+	
+	//Draw simple debug spheres for suspension traces
+	static void DrawDebugSphereTrace(bool bBlockingHit, FVector SphereStart, FVector SphereEnd, FVector SphereCenter, float SphereRadius, FVector HitPoint, UWorld *WorldRef);
+	
 	//DoOnce for debug messages
 	template<typename CallbackType> void DoOnce(const CallbackType& Callback) { static bool bDone = false; if (!bDone) { Callback(); bDone = true; } };
 
