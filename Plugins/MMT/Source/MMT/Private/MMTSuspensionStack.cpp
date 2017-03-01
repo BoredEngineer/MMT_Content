@@ -394,7 +394,7 @@ void UMMTSuspensionStack::DrawDebugLineTrace(bool bBlockingHit, FVector Start, F
 	{
 		DrawDebugLine(WorldRef, Start, HitPoint, FColor::Red, false, 0.0f, 1, 1.0f);
 		DrawDebugLine(WorldRef, HitPoint, End, FColor::Green, false, 0.0f, 1, 1.0f);
-		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Yellow, false, 0.0f, 0);
+		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Blue, false, 0.0f, 0);
 	}
 	else
 	{
@@ -402,18 +402,33 @@ void UMMTSuspensionStack::DrawDebugLineTrace(bool bBlockingHit, FVector Start, F
 	}
 }
 
-void UMMTSuspensionStack::DrawDebugSphereTrace(bool bBlockingHit, FVector SphereStart, FVector SphereEnd, FVector SphereCenter, float SphereRadius, FVector HitPoint, UWorld *WorldRef)
+void UMMTSuspensionStack::DrawDebugSphereTrace(bool bBlockingHit, FVector TraceStart, FVector TraceEnd, FVector HitTraceLocation, float SphereRadius, FVector HitPoint, UWorld *WorldRef)
 {
+	FVector CapsuleDirection = TraceEnd - TraceStart;
+	FQuat CapsuleRot = FRotationMatrix::MakeFromZ(CapsuleDirection).ToQuat();
+
 	if (bBlockingHit)
 	{
-		DrawDebugSphere(WorldRef, SphereStart, SphereRadius, 12, FColor::Red, false, 0.0f, 1, 0.25f);
-		DrawDebugSphere(WorldRef, SphereCenter, SphereRadius, 12, FColor::Green, false, 0.0f, 1, 0.25f);
-		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Yellow, false, 0.0f, 0);
+		CapsuleDirection = HitTraceLocation - TraceStart;
+		float CapsuleLenght = CapsuleDirection.Size();
+		FVector CapsuleCenter = TraceStart + CapsuleDirection * 0.5;
+		float CapsuleHalfHeight = CapsuleLenght * 0.5f + SphereRadius;
+		DrawDebugCapsule(WorldRef, CapsuleCenter, CapsuleHalfHeight, SphereRadius, CapsuleRot, FColor::Red, false, 0.0f, 1, 1.0f);
+
+		CapsuleDirection = TraceEnd - HitTraceLocation;
+		CapsuleLenght = CapsuleDirection.Size();
+		CapsuleCenter = HitTraceLocation + CapsuleDirection * 0.5;
+		CapsuleHalfHeight = CapsuleLenght * 0.5f + SphereRadius;
+		DrawDebugCapsule(WorldRef, CapsuleCenter, CapsuleHalfHeight, SphereRadius, CapsuleRot, FColor::Green, false, 0.0f, 1, 1.0f);
+
+		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Blue, false, 0.0f, 0);
 	}
 	else
 	{
-		DrawDebugSphere(WorldRef, SphereStart, SphereRadius, 12, FColor::Yellow, false, 0.0f, 1, 0.25f);
-		DrawDebugSphere(WorldRef, SphereEnd, SphereRadius, 12, FColor::Yellow, false, 0.0f, 1, 0.25f);
+		float CapsuleLenght = CapsuleDirection.Size();
+		FVector CapsuleCenter = TraceStart + CapsuleDirection * 0.5;
+		float CapsuleHalfHeight = CapsuleLenght * 0.5f + SphereRadius;
+		DrawDebugCapsule(WorldRef, CapsuleCenter, CapsuleHalfHeight, SphereRadius, CapsuleRot, FColor::Yellow, false, 0.0f, 1, 1.0f);
 	}
 }
 
