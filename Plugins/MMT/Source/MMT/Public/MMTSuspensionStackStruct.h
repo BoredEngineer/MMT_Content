@@ -70,6 +70,10 @@ struct FSuspensionStackStruct
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (EditCondition = "bCanShapeSweep", ToolTip = "Name of the mesh component that will be used for shape sweep of this suspension stack"))
 		FString SweepShapeComponentName;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Shape Sweep mode", meta = (ToolTip = "Will rotate sweep shape such that its Z vector will be parallel to direction of sweep, otherwise shape is not rotated"))
+		bool bRotateAlongTraceVector;
+
 
 
 	//Default constructor

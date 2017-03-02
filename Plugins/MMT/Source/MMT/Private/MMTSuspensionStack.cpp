@@ -31,7 +31,6 @@ void UMMTSuspensionStack::Initialize()
 	SuspensionForceLS = FVector::ZeroVector;
 	SuspensionForceWS = FVector::ZeroVector;
 	SuspensionForceScale = 1.0f;
-	SphereCheckRotator = FQuat();
 
 
 	USceneComponent* TryParent = CastChecked<USceneComponent>(GetOuter());
@@ -57,6 +56,14 @@ void UMMTSuspensionStack::Initialize()
 		SphereTraceQueryParameters.bReturnFaceIndex = false;
 		SphereTraceQueryParameters.bReturnPhysicalMaterial = true;
 		SphereTraceQueryParameters.AddIgnoredActor(ParentComponentRef->GetOwner());
+
+		//Shape Sweep default query parameters, called from here to have valid reference to parent
+		ShapeSweepQueryParameters.bTraceAsyncScene = false;
+		ShapeSweepQueryParameters.bTraceComplex = false;
+		ShapeSweepQueryParameters.bReturnFaceIndex = false;
+		ShapeSweepQueryParameters.bReturnPhysicalMaterial = true;
+		ShapeSweepQueryParameters.AddIgnoredActor(ParentComponentRef->GetOwner());
+
 	}
 	else
 	{
@@ -146,6 +153,7 @@ void UMMTSuspensionStack::PreCalculateParameters()
 	LineTraceOffsetBottomLS = SpringOffsetBottomAdjusted + SpringDirectionLocal * (SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness);
 
 	SphereCheckShape = FCollisionShape::MakeSphere(SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness);
+	
 }
 
 
@@ -196,7 +204,6 @@ void UMMTSuspensionStack::LineTraceForContact()
 			{
 				ContactInducedVelocity = LineTraceOutHit.Component->ComponentVelocity;
 			}
-			//DrawDebugString(ParentComponentRef->GetWorld(), ParentComponentRef->GetComponentLocation(), ContactInducedVelocity.ToString(), 0, FColor::Cyan, 0.0f, false);
 		}
 	}
 
@@ -204,7 +211,6 @@ void UMMTSuspensionStack::LineTraceForContact()
 	if (SuspensionSettings.bEnableDebugMode)
 	{
 		DrawDebugLineTrace(bContactPointActive, LineTraceStart, LineTraceEnd, LineTraceOutHit.ImpactPoint, ParentComponentRef->GetWorld());
-		//DrawDebugString(ParentComponentRef->GetWorld(), ParentComponentRef->GetComponentLocation(), SpringDirectionLocal.ToString(), 0, FColor::Cyan, 0.0f, false);
 	}
 }
 
@@ -218,6 +224,8 @@ void UMMTSuspensionStack::SphereTraceForContact()
 	FVector SphereTraceStart = ReferenceFrameTransform.TransformPosition(SpringOffsetTopAdjusted);
 	FVector SphereTraceEnd = ReferenceFrameTransform.TransformPosition(SpringOffsetBottomAdjusted);
 
+	FQuat SphereCheckRotator = FQuat();
+
 	//Do sphere trace
 	bContactPointActive = ParentComponentRef->GetWorld()->SweepSingleByChannel(SphereTraceOutHit, SphereTraceStart, SphereTraceEnd, SphereCheckRotator,
 		SuspensionSettings.SphereCheckTraceChannel, SphereCheckShape, SphereTraceQueryParameters, SphereTraceResponseParameters);
@@ -228,7 +236,7 @@ void UMMTSuspensionStack::SphereTraceForContact()
 		ContactPointLocation = SphereTraceOutHit.ImpactPoint;
 		ContactPointNormal = SphereTraceOutHit.ImpactNormal;
 		ContactPhysicalMaterial = SphereTraceOutHit.PhysMaterial.Get();
-		SphereCheckLocation = SphereTraceOutHit.Location;
+		TracedHubLocation = SphereTraceOutHit.Location;
 		
 		if (SuspensionSettings.bGetContactBodyVelocity)
 		{
@@ -246,14 +254,66 @@ void UMMTSuspensionStack::SphereTraceForContact()
 	//Draw debug
 	if (SuspensionSettings.bEnableDebugMode)
 	{
-		DrawDebugSphereTrace(bContactPointActive, SphereTraceStart, SphereTraceEnd, SphereCheckLocation, SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness,
+		DrawDebugSphereTrace(bContactPointActive, SphereTraceStart, SphereTraceEnd, TracedHubLocation, SuspensionSettings.RoadWheelRadius + SuspensionSettings.TrackThickness,
 			SphereTraceOutHit.ImpactPoint, ParentComponentRef->GetWorld());
-		//DrawDebugLineTrace(bContactPointActive, LineTraceStart, LineTraceEnd, LineTraceOutHit.ImpactPoint, ParentComponentRef->GetWorld());
-		//DrawDebugString(ParentComponentRef->GetWorld(), ParentComponentRef->GetComponentLocation(), SpringDirectionLocal.ToString(), 0, FColor::Cyan, 0.0f, false);
 	}
 
 }
 
+void UMMTSuspensionStack::ShapeSweepForContact()
+{
+	//Clean results
+	TArray<FHitResult> ShapeSweepOutHits;
+
+	//Transform points into world space using component's transform
+	FVector ShapeSweepStart = ReferenceFrameTransform.TransformPosition(SpringOffsetTopAdjusted);
+	FVector ShapeSweepEnd = ReferenceFrameTransform.TransformPosition(SpringOffsetBottomAdjusted);
+
+	FQuat ShapeSweepRotator = FQuat();
+
+	if (SuspensionSettings.bRotateAlongTraceVector)
+	{
+		ShapeSweepRotator = FRotationMatrix::MakeFromZ(ReferenceFrameTransform.TransformVector(SpringOffsetBottomAdjusted - SpringOffsetTopAdjusted)).ToQuat();
+	}
+	else
+	{ 
+		ShapeSweepRotator = FRotationMatrix::MakeFromXZ(SweepShapeMeshComponent->GetForwardVector(), SweepShapeMeshComponent->GetUpVector()).ToQuat();
+	}
+	
+	//Do shape sweep
+	bContactPointActive = ParentComponentRef->GetWorld()->ComponentSweepMulti(ShapeSweepOutHits, SweepShapeMeshComponent, ShapeSweepStart, ShapeSweepEnd, ShapeSweepRotator,
+		ShapeSweepQueryParameters);
+
+	//Dirty but assumption is that contact information is never used if bContactPointActive is false.
+	if (bContactPointActive)
+	{
+		FHitResult ShapeSweepClosestOutHit = ShapeSweepOutHits[0];
+		
+		ContactPointLocation = ShapeSweepClosestOutHit.ImpactPoint;
+		ContactPointNormal = ShapeSweepClosestOutHit.ImpactNormal;
+		ContactPhysicalMaterial = ShapeSweepClosestOutHit.PhysMaterial.Get();
+		TracedHubLocation = ShapeSweepClosestOutHit.Location;
+
+		if (SuspensionSettings.bGetContactBodyVelocity)
+		{
+			if (ShapeSweepClosestOutHit.Component->IsSimulatingPhysics())
+			{
+				ContactInducedVelocity = ShapeSweepClosestOutHit.Component->GetPhysicsLinearVelocityAtPoint(ContactPointLocation);
+			}
+			else
+			{
+				ContactInducedVelocity = ShapeSweepClosestOutHit.Component->ComponentVelocity;
+			}
+		}
+	}
+	
+	//Draw debug
+	if (SuspensionSettings.bEnableDebugMode)
+	{
+		DrawDebugShapeSweep(bContactPointActive, ShapeSweepStart, ShapeSweepEnd, TracedHubLocation, ContactPointLocation, ParentComponentRef->GetWorld());
+	}
+
+}
 
 //Find new position of road-wheel according to current simulation mode
 void UMMTSuspensionStack::UpdateWheelHubPosition()
@@ -296,7 +356,7 @@ void UMMTSuspensionStack::UpdateWheelHubPosition()
 
 				if (bContactPointActive)
 				{
-					WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(SphereCheckLocation);
+					WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(TracedHubLocation);
 				}
 				else
 				{
@@ -324,13 +384,34 @@ void UMMTSuspensionStack::UpdateWheelHubPosition()
 		{
 			if (SuspensionSettings.SimulationMode == ESuspensionSimMode::ShapeSweep)
 			{
-				if (!bWarningMessageDisplayed)
-				{
-					bWarningMessageDisplayed = true;
-					GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s Shape Sweep simulation mode is not implemented"), *ComponentsParentName, *ComponentName));
-					UE_LOG(LogTemp, Warning, TEXT("%s->%s Shape Sweep simulation mode is not implemented"), *ComponentsParentName, *ComponentName);
-				}
 
+				if (SuspensionSettings.bCanShapeSweep)
+				{
+					ShapeSweepForContact();
+					if (bContactPointActive)
+					{
+						WheelHubPositionLS = ReferenceFrameTransform.InverseTransformPosition(TracedHubLocation);
+					}
+					else
+					{
+						//If trace failed wheel hub is assumed to be in lowest possible position of suspension
+						WheelHubPositionLS = SpringOffsetBottomAdjusted;
+					}
+
+					if (SuspensionSettings.bEnableDebugMode)
+					{
+						DrawDebugSphere(ParentComponentRef->GetWorld(), ReferenceFrameTransform.TransformPosition(WheelHubPositionLS), 10.0, 9, FColor::Blue, false, 0.0f, 0, 1.0f);
+					}
+				}
+				else
+				{
+					if (!bWarningMessageDisplayed)
+					{
+						bWarningMessageDisplayed = true;
+						GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s Shape Sweep mode is enabled but bCanShapeSweep property is set to false."), *ComponentsParentName, *ComponentName));
+						UE_LOG(LogTemp, Warning, TEXT("%s->%s Shape Sweep mode is enabled but bCanShapeSweep property is set to false."), *ComponentsParentName, *ComponentName);
+					}
+				}
 			}
 		}
 	}
@@ -429,6 +510,20 @@ void UMMTSuspensionStack::DrawDebugSphereTrace(bool bBlockingHit, FVector TraceS
 		FVector CapsuleCenter = TraceStart + CapsuleDirection * 0.5;
 		float CapsuleHalfHeight = CapsuleLenght * 0.5f + SphereRadius;
 		DrawDebugCapsule(WorldRef, CapsuleCenter, CapsuleHalfHeight, SphereRadius, CapsuleRot, FColor::Yellow, false, 0.0f, 1, 1.0f);
+	}
+}
+
+void UMMTSuspensionStack::DrawDebugShapeSweep(bool bBlockingHit, FVector Start, FVector End, FVector Location,FVector HitPoint, UWorld *WorldRef)
+{
+	if (bBlockingHit)
+	{
+		DrawDebugLine(WorldRef, Start, Location, FColor::Red, false, 0.0f, 1, 1.0f);
+		DrawDebugLine(WorldRef, Location, End, FColor::Green, false, 0.0f, 1, 1.0f);
+		DrawDebugPoint(WorldRef, HitPoint, 10.0, FColor::Purple, false, 0.0f, 0);
+	}
+	else
+	{
+		DrawDebugLine(WorldRef, Start, End, FColor::Yellow, false, 0.0f, 0, 1.0f);
 	}
 }
 
