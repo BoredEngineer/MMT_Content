@@ -124,6 +124,9 @@ bool UMMTFrictionComponent::PhysicsUpdate(const float& NumberOfContactPoints, co
 	FVector NormalizedReactionForceOut = FVector::ZeroVector;
 	FVector RollingFrictionForceOut = FVector::ZeroVector;
 
+	LastFrictionForce = FVector::ZeroVector;
+	LastFrictionLimit = 0.0f;
+
 	if ((ContactPointsData.Num() > 0) & !bDisabled)
 	{
 		if (ContactPointsData[0].IsPointActive)
