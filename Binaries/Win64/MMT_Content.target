@@ -2,14 +2,14 @@
 	"TargetName" : "MMT_Content",
 	"Platform" : "Win64",
 	"Configuration" : "Development",
-	"BuildId" : "1874180b-d1f4-4387-b373-fe1b6d45614f",
+	"BuildId" : "3fc6311b-d9ab-4039-9599-ed69d4e0cbd3",
 	"Version" : 
 	{
 		"MajorVersion" : 4,
 		"MinorVersion" : 15,
-		"PatchVersion" : 0,
-		"Changelist" : 3299760,
-		"CompatibleChangelist" : 0,
+		"PatchVersion" : 1,
+		"Changelist" : 3348071,
+		"CompatibleChangelist" : 3299760,
 		"IsLicenseeVersion" : 0,
 		"IsPromotedBuild" : 1,
 		"BranchName" : "++UE4+Release-4.15"
@@ -109,6 +109,10 @@
 		},
 		{
 			"Path" : "$(EngineDir)/Plugins/Runtime/ExampleDeviceProfileSelector/ExampleDeviceProfileSelector.uplugin",
+			"Type" : "UFS"
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/GearVR/GearVR.uplugin",
 			"Type" : "UFS"
 		},
 		{
@@ -257,6 +261,10 @@
 		},
 		{
 			"Path" : "$(EngineDir)/Binaries/ThirdParty/Vorbis/Win64/VS2015/libvorbisfile_64.dll",
+			"Type" : "NonUFS"
+		},
+		{
+			"Path" : "$(EngineDir)/Binaries/ThirdParty/Oculus/OculusMobile/SDK_1_0_3/Win64/VrApiShim.dll",
 			"Type" : "NonUFS"
 		},
 		{
