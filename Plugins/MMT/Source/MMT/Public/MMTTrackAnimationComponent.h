@@ -35,7 +35,7 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Spline component that defines path of the track"))
 	FString TrackSplineComponentName;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Instanced mesh component for rendering treads"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Instanced mesh component for rendering treads. Set to 'none' if you want to render treads on your own. For example, using multiple ISMs or using completely different method. UpdateTrackAnimation function updates array of local space transforms for each tread which you can get using GetTreadsTransformArray function"))
 	FString TreadsInstancedMeshComponentName;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Array of spline point indexes and references for their animation"))
@@ -50,6 +50,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Set to true if pivot of your tread mesh is aligned with front connection pin. This approach provides more precise alignment of the treads. When false it's assumed that pivot is in middle of the tread mesh."))
 	bool bTreadPivotIsOnPin;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "Angle between sprocket's teeth. Can be calculated as 360 / total number of teeth"))
+	float AngleBetweenSprocketTeeth;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation Settings", meta = (ToolTip = "(Optional) Array of default location for track spline control points in case you don't prepared spline in editor"))
 	TArray<FVector> TrackSplinePointLocations;
 
@@ -63,23 +66,36 @@ public:
 	/**
 	*	Sets new angular and linear velocity of the sprocket, idlers, roadwheels and treads
 	*	@param AngularVelocity 		used to rotate sprockets, idlers and roadwheel meshes.
-	*	@param LinearVelocity 		used to move treads along the spline.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "MMT Track Animation Component")
-	void SetTrackPartsAngularAndLinearVelocity(const float& AngularVelocity, const float& LinearVelocity);
+	void SetTrackPartsAngularVelocity(const float& AngularVelocity);
 
 	/**
 	*	Updates animation of track elements. Should be called on each tick for maximum fidelity. Call less frequently for LODs.
-	*	@param DeltaTime			Delta time
+	*	@param DeltaTime				Delta time
+	*	@return TrackAngularPosition	Angular distance traveled by the track around sprocket in degrees. Think about it as a rope wrapped around the cylinder multiple times but we measure its length not in meters but number of times we wrapped it around cylinder.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "MMT Track Animation Component")
-	void UpdateTrackAnimation(const float& DeltaTime);
+	void UpdateTrackAnimation(const float& DeltaTime, float& TreadAngularPosition, float& PartsAngularPosition, FRotator& TrackPartsRotator);
 
 	/**
 	*	Call from BP constructor to set track spline component into default state and add tread instances to Treads Instanced Mesh component.
 	*/
 	UFUNCTION(BlueprintCallable, Category = "MMT Track Animation Component")
 	void BuildTrackMeshAndSpline();
+
+
+	/**
+	*	Retrieve array of local space transforms of treads, to be used for custom rendering of treads or any other purpose
+	*/
+	UFUNCTION(BlueprintCallable, Category = "MMT Track Animation Component")
+	TArray<FTransform> GetTreadsTransformArray();
+
+	/**
+	*	Retrieve angular distance traveled by the track around sprocket in degrees. Think about it as a rope wrapped around the cylinder multiple times but we measure its length not in meters but number of times its wrapped around cylinder.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "MMT Track Animation Component")
+	float GetTrackAngularPosition();
 
 private:
 	UPROPERTY()
@@ -92,13 +108,25 @@ private:
 	UInstancedStaticMeshComponent* TreadsInstancedMeshComponent;
 
 	UPROPERTY()
-	float TreadMeshPositionOffset;
+	float TrackPartsAngularVelocityDegrees;
 
 	UPROPERTY()
-	float TrackPartsAngularVelocity;
+	float TreadFractionalTravel;
 
 	UPROPERTY()
-	float TreadsLinearVelocity;
+	float PartsRotationDegrees;
+	
+	UPROPERTY()
+	int TreadOffsetCount;
+
+	UPROPERTY()
+	int PartsOffsetCount;
+
+	UPROPERTY()
+	int NumberOfFullOffsets;
+
+	UPROPERTY()
+	TArray<FTransform> TreadsTransforms;
 
 	// Find reference to named components
 	void GetComponentsReference();
@@ -108,4 +136,6 @@ private:
 	
 	//Calculate transform of the instance using position of current instance and previous instance
 	FTransform GetAllignedTransformAlongSplineUsingPosition(const float& Distance, FVector PositionOfPrevInstance, FVector& OutPositionOfCurrentInstance);
+
+	void CalculateIntAndFracRotationOfTrack(float DeltaPitch);
 };

@@ -16,6 +16,7 @@ UMMTTrackAnimationComponent::UMMTTrackAnimationComponent()
 	TreadsOnSide = 30;
 	bFlipAnimation = false;
 	bDebugMode = false;
+	AngleBetweenSprocketTeeth = 18;
 }
 
 // Called when the game starts or when spawned
@@ -98,8 +99,10 @@ void UMMTTrackAnimationComponent::GetComponentsReference()
 	else
 	{
 		TreadsInstancedMeshComponent = NULL;
-		GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName()));
-		UE_LOG(LogTemp, Warning, TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName());
+		
+		//We allow "none" for cases when user wants to manage rendering of treads on his own
+		//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName()));
+		//UE_LOG(LogTemp, Warning, TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName());
 	}
 
 	//Get references for animated spline points
@@ -130,25 +133,34 @@ void UMMTTrackAnimationComponent::GetComponentsReference()
 }
 
 //Set angular velocity of track parts
-void UMMTTrackAnimationComponent::SetTrackPartsAngularAndLinearVelocity(const float& AngularVelocity, const float& LinearVelocity)
+void UMMTTrackAnimationComponent::SetTrackPartsAngularVelocity(const float& AngularVelocity)
 {
-	TrackPartsAngularVelocity = FMath::RadiansToDegrees(AngularVelocity);
-	TreadsLinearVelocity = LinearVelocity;
+	TrackPartsAngularVelocityDegrees = FMath::RadiansToDegrees(AngularVelocity);
 }
 
 //Updates animation of the track parts
-void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime)
+void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime, float& TreadAngularPosition, float& PartsAngularPosition, FRotator& TrackPartsRotator)
 {
-
 	//Rotate sprockets, idlers and roadwheels
-	FRotator DeltaRotation = FRotator(DeltaTime * TrackPartsAngularVelocity * (bFlipAnimation ? 1.0f : -1.0f), 0.0f, 0.0f);
+	float DeltaPitch = DeltaTime * TrackPartsAngularVelocityDegrees * (bFlipAnimation ? -1.0f : 1.0f);
+
+	//Update angular travel of the track around the sprocket
+	CalculateIntAndFracRotationOfTrack(DeltaPitch);
+
+	TreadAngularPosition = TreadFractionalTravel + TreadOffsetCount * AngleBetweenSprocketTeeth;
+	PartsAngularPosition = TreadFractionalTravel + PartsOffsetCount * AngleBetweenSprocketTeeth;
+	
+	//Flip sign of rotation for rotator
+	FRotator NewTrackElementsRotator = FRotator::MakeFromEuler(FVector(0.0f, PartsAngularPosition * (-1.0f), 0.0f));
+	TrackPartsRotator = NewTrackElementsRotator;
+	
 	if (SprocketsIdlersRoadwheelsNames.Num() > 0)
 	{
 		for (int32 i = 0; i < SprocketsIdlersRoadwheelsComponents.Num(); i++)
 		{
 			if (IsValid(SprocketsIdlersRoadwheelsComponents[i]))
 			{
-				SprocketsIdlersRoadwheelsComponents[i]->AddLocalRotation(DeltaRotation, false);
+				SprocketsIdlersRoadwheelsComponents[i]->SetRelativeRotation(NewTrackElementsRotator, false);
 			}
 		}
 	}
@@ -168,37 +180,77 @@ void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime)
 	}
 
 	//Calculate new position of tread instances
-	if (IsValid(TreadsInstancedMeshComponent) && IsValid(TrackSplineComponent))
+	if (IsValid(TrackSplineComponent))
 	{
 		float SplineLength = TrackSplineComponent->GetSplineLength();
 
-		//avoid looping around the spline to maintain precision
-		TreadMeshPositionOffset = FMath::Fmod(TreadMeshPositionOffset + TreadsLinearVelocity * DeltaTime, SplineLength);
+		//Measure of how much single sprocket tooth have rotated
+		float RotationDivision = TreadFractionalTravel / AngleBetweenSprocketTeeth;
+
+		//Distance can change on every frame as spline stretches
+		float DistanceBetweenInstances = SplineLength / (float)TreadsOnSide;
+
+		//Calculate how much single instance have moved between discrete rotations by sprocket between teeth angle
+		float InstancePositionLerp = FMath::Frac(RotationDivision);
+		float InstancePositionLocalOffset = FMath::Lerp(0.0f, DistanceBetweenInstances, InstancePositionLerp);
+
+		//How many full discrete rotations by sprocket between teeth angle, first instance have moved
+		int FirstInstancePlaceOffset = TreadOffsetCount;
 
 		FVector PositionOfPrevInstance;
 		FVector PositionOfCurrentInstance;
 		for (int32 i = 0; i < TreadsOnSide; i++)
 		{
-			float DistanceAlongSpline = FMath::Fmod((float)i * (SplineLength / (float)TreadsOnSide) + TreadMeshPositionOffset, SplineLength);
-			DistanceAlongSpline = DistanceAlongSpline < 0.0 ? SplineLength + DistanceAlongSpline : DistanceAlongSpline;
+			//Move each instance by amount that first instance have traveled + own offset based on index
+			//FMod result to prevent distance along spline getting larger than length of the spline as GetLocationAlongSpline won't return correct result
+			float DistanceAlongSpline = FMath::Fmod((float)(i + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
+			
+				
+			//float DistanceAlongSpline = (float)i  * DistanceBetweenInstances + InstancePositionLocalOffset;
+
+			FTransform TreadAllignedTransform;
 
 			if (bTreadPivotIsOnPin)
 			{
+				//If this is a first instance, we need to align it with position of last instance as track loops
 				if (i == 0)
 				{
-					float LastInstanceDistance = FMath::Fmod((float)(TreadsOnSide - 1) * (SplineLength / (float)TreadsOnSide) + TreadMeshPositionOffset, SplineLength);
-					DistanceAlongSpline = DistanceAlongSpline < 0.0 ? SplineLength + DistanceAlongSpline : DistanceAlongSpline;
-
+					float LastInstanceDistance = FMath::Fmod((float)((TreadsOnSide - 1) + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
 					PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(LastInstanceDistance, ESplineCoordinateSpace::Local);
 				}
-				TreadsInstancedMeshComponent->UpdateInstanceTransform(i, GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance),
-					false, (i + 1 == TreadsOnSide) ? true : false, false);
+
+				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance);
+
+				if (IsValid(TreadsInstancedMeshComponent))
+				{
+					TreadsInstancedMeshComponent->UpdateInstanceTransform(i, TreadAllignedTransform, false, (i + 1 == TreadsOnSide) ? true : false, false);
+				}
+
 				PositionOfPrevInstance = PositionOfCurrentInstance;
+
+				if (bDebugMode)
+				{
+					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
+					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
+				}
 			}
 			else
 			{
-				TreadsInstancedMeshComponent->UpdateInstanceTransform(i, GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline), false, (i + 1 == TreadsOnSide) ? true : false, false);
+				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline);
+
+				if (IsValid(TreadsInstancedMeshComponent))
+				{
+					TreadsInstancedMeshComponent->UpdateInstanceTransform(i, TreadAllignedTransform, false, (i + 1 == TreadsOnSide) ? true : false, false);
+				}
+				
+				if (bDebugMode)
+				{
+					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
+					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
+				}
 			}
+
+			TreadsTransforms[i] = TreadAllignedTransform;
 		}
 
 	}
@@ -235,6 +287,8 @@ void UMMTTrackAnimationComponent::BuildTrackMeshAndSpline()
 			{
 				float DistanceAlongSpline = TrackSplineComponent->GetSplineLength() / (float)TreadsOnSide * (float)i;
 
+				FTransform TreadAllignedTransform;
+
 				if (bTreadPivotIsOnPin)
 				{
 					if (i == 0) 
@@ -242,14 +296,25 @@ void UMMTTrackAnimationComponent::BuildTrackMeshAndSpline()
 						PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(TrackSplineComponent->GetSplineLength() / (float)TreadsOnSide * ((float)TreadsOnSide - 1)
 							,ESplineCoordinateSpace::Local);
 					}
-					TreadsInstancedMeshComponent->AddInstance(GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance));
+
+					TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance);
+
+					if (IsValid(TreadsInstancedMeshComponent))
+					{
+						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
+					}
 					PositionOfPrevInstance = PositionOfCurrentInstance;
 				}
 				else
 				{
-					//TreadsInstancedMeshComponent->AddInstance(FTransform(TreadRotator, TransformAlongSPline.GetTranslation(), TransformAlongSPline.GetScale3D()));
-					TreadsInstancedMeshComponent->AddInstance(GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline));
+					TreadAllignedTransform = GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline);
+
+					if (IsValid(TreadsInstancedMeshComponent))
+					{
+						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
+					}
 				}
+				TreadsTransforms.Add(TreadAllignedTransform);
 			}
 		}
 	}
@@ -278,4 +343,80 @@ FTransform UMMTTrackAnimationComponent::GetAllignedTransformAlongSplineUsingPosi
 	FRotator TreadRotator = FRotator(FMath::RadiansToDegrees(InstancePitch), 0.0f, 0.0f);
 
 	return FTransform(TreadRotator, OutPositionOfCurrentInstance);
+}
+
+
+//Update angular travel of the full track. Rotation of the track is not limited to range of 360 degrees but to angle between sprocket teeth multiplied by number of treads
+//Perceive it as a angular travel of the tread around a sprocket if full track would be wrapped around sprocket like a snake.
+void UMMTTrackAnimationComponent::CalculateIntAndFracRotationOfTrack(float DeltaPitch)
+{
+	if (!DeltaPitch == 0.0f)
+	{
+		float NewPitch = TreadFractionalTravel + DeltaPitch;
+
+		if (NewPitch > AngleBetweenSprocketTeeth)
+		{
+			//When new pitch is larger than a discrete angle between sprocket teeth, we advance integer offset of rotation forward and re-calculate fractional part
+
+			//Floor division in case of large angular velocity as we can skip over single AngleBetweenSprocketTeeth multiple times
+			NumberOfFullOffsets = FMath::FloorToInt(NewPitch / AngleBetweenSprocketTeeth);
+			TreadOffsetCount += NumberOfFullOffsets;
+			PartsOffsetCount += NumberOfFullOffsets;
+			TreadFractionalTravel = NewPitch - NumberOfFullOffsets * AngleBetweenSprocketTeeth;
+		}
+		else
+		{
+			if (NewPitch < 0.0f)
+			{
+				//When new pitch is smaller than zero, we advance integer offset of rotation backward and re-calculate fractional part
+				NewPitch *= -1.f;
+				NumberOfFullOffsets = FMath::FloorToInt(NewPitch / AngleBetweenSprocketTeeth);
+				TreadOffsetCount -= NumberOfFullOffsets + 1;
+				PartsOffsetCount -= NumberOfFullOffsets + 1;
+				//Our TrackFractionalTravel is always between 0 and 1 representing movement of the single tread along the angular sector occupied by single tread
+				TreadFractionalTravel = AngleBetweenSprocketTeeth - (NewPitch - NumberOfFullOffsets * AngleBetweenSprocketTeeth);
+			}
+			else
+			{
+				TreadFractionalTravel = NewPitch;
+			}
+		}
+
+		//Treads loop around the whole length of the track this is where we keep them in proper range		
+		if (TreadOffsetCount < 0)
+		{
+			TreadOffsetCount = TreadsOnSide + TreadOffsetCount;
+		}
+		else
+		{
+			if (TreadOffsetCount > (TreadsOnSide - 1))
+			{
+				TreadOffsetCount = 0;
+			}
+		}
+
+		//Track parts such as sprocket but not treads, loop around 360 degrees
+		if (PartsOffsetCount < 0)
+		{
+			PartsOffsetCount = FMath::FloorToInt(360.0f / AngleBetweenSprocketTeeth) + PartsOffsetCount;
+		}
+		else
+		{
+			if (PartsOffsetCount > (FMath::FloorToInt(360.0f / AngleBetweenSprocketTeeth) - 1))
+			{
+				PartsOffsetCount = 0;
+			}
+		}
+
+	}
+}
+
+TArray<FTransform> UMMTTrackAnimationComponent::GetTreadsTransformArray()
+{
+	return TreadsTransforms;
+}
+
+float UMMTTrackAnimationComponent::GetTrackAngularPosition()
+{
+	return TreadFractionalTravel;
 }
