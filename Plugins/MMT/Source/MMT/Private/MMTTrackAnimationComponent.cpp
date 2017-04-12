@@ -13,6 +13,7 @@ UMMTTrackAnimationComponent::UMMTTrackAnimationComponent()
 
 	TrackSplineComponentName = FString("none");
 	TreadsInstancedMeshComponentName = FString("none");
+	SecondTreadsInstancedMeshComponentName = FString("none");
 	TreadsOnSide = 30;
 	bFlipAnimation = false;
 	bDebugMode = false;
@@ -104,6 +105,21 @@ void UMMTTrackAnimationComponent::GetComponentsReference()
 		//GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName()));
 		//UE_LOG(LogTemp, Warning, TEXT("%s->%s component's Treads Instanced Mesh Component Name property shouldn't be 'none', set proper name for effected component"), *GetOwner()->GetName(), *GetName());
 	}
+	
+	//Get secondary treads instanced mesh component reference
+	if (SecondTreadsInstancedMeshComponentName != FString("none"))
+	{
+		SecondTreadsInstancedMeshComponent = UMMTBPFunctionLibrary::GetInstancedStaticMeshComponentReferenceByName(this, SecondTreadsInstancedMeshComponentName);
+		if (!IsValid(SecondTreadsInstancedMeshComponent))
+		{
+			GEngine->AddOnScreenDebugMessage(-1, 15.0f, FColor::Red, FString::Printf(TEXT("%s->%s component failed to find component named '%s' or it's not derived from InstancedStaticMeshComponent class"), *GetOwner()->GetName(), *GetName(), *SecondTreadsInstancedMeshComponentName));
+			UE_LOG(LogTemp, Warning, TEXT("%s->%s component failed to find component named '%s' or it's not derived from InstancedStaticMeshComponent class"), *GetOwner()->GetName(), *GetName(), *SecondTreadsInstancedMeshComponentName);
+		}
+	}
+	else
+	{
+		SecondTreadsInstancedMeshComponent = NULL;
+	}
 
 	//Get references for animated spline points
 	if (AnimatedTrackSplinePoints.Num() > 0)
@@ -139,21 +155,21 @@ void UMMTTrackAnimationComponent::SetTrackPartsAngularVelocity(const float& Angu
 }
 
 //Updates animation of the track parts
-void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime, float& TreadAngularPosition, float& PartsAngularPosition, FRotator& TrackPartsRotator)
+void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime, float& TreadAngularPosition, float& TrackPartsAngularPosition, FRotator& TrackPartsRotator)
 {
-	//Rotate sprockets, idlers and roadwheels
+	//Rotate sprockets, idlers and road-wheels
 	float DeltaPitch = DeltaTime * TrackPartsAngularVelocityDegrees * (bFlipAnimation ? -1.0f : 1.0f);
 
 	//Update angular travel of the track around the sprocket
 	CalculateIntAndFracRotationOfTrack(DeltaPitch);
 
 	TreadAngularPosition = TreadFractionalTravel + TreadOffsetCount * AngleBetweenSprocketTeeth;
-	PartsAngularPosition = TreadFractionalTravel + PartsOffsetCount * AngleBetweenSprocketTeeth;
+	TrackPartsAngularPosition = TreadFractionalTravel + PartsOffsetCount * AngleBetweenSprocketTeeth;
 	
 	//Flip sign of rotation for rotator
-	FRotator NewTrackElementsRotator = FRotator::MakeFromEuler(FVector(0.0f, PartsAngularPosition * (-1.0f), 0.0f));
+	FRotator NewTrackElementsRotator = FRotator::MakeFromEuler(FVector(0.0f, TrackPartsAngularPosition * (-1.0f), 0.0f));
 	TrackPartsRotator = NewTrackElementsRotator;
-	
+
 	if (SprocketsIdlersRoadwheelsNames.Num() > 0)
 	{
 		for (int32 i = 0; i < SprocketsIdlersRoadwheelsComponents.Num(); i++)
@@ -179,81 +195,8 @@ void UMMTTrackAnimationComponent::UpdateTrackAnimation(const float& DeltaTime, f
 		}
 	}
 
-	//Calculate new position of tread instances
-	if (IsValid(TrackSplineComponent))
-	{
-		float SplineLength = TrackSplineComponent->GetSplineLength();
+	PlacesInstancesAlongSpline(false);
 
-		//Measure of how much single sprocket tooth have rotated
-		float RotationDivision = TreadFractionalTravel / AngleBetweenSprocketTeeth;
-
-		//Distance can change on every frame as spline stretches
-		float DistanceBetweenInstances = SplineLength / (float)TreadsOnSide;
-
-		//Calculate how much single instance have moved between discrete rotations by sprocket between teeth angle
-		float InstancePositionLerp = FMath::Frac(RotationDivision);
-		float InstancePositionLocalOffset = FMath::Lerp(0.0f, DistanceBetweenInstances, InstancePositionLerp);
-
-		//How many full discrete rotations by sprocket between teeth angle, first instance have moved
-		int FirstInstancePlaceOffset = TreadOffsetCount;
-
-		FVector PositionOfPrevInstance;
-		FVector PositionOfCurrentInstance;
-		for (int32 i = 0; i < TreadsOnSide; i++)
-		{
-			//Move each instance by amount that first instance have traveled + own offset based on index
-			//FMod result to prevent distance along spline getting larger than length of the spline as GetLocationAlongSpline won't return correct result
-			float DistanceAlongSpline = FMath::Fmod((float)(i + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
-			
-				
-			//float DistanceAlongSpline = (float)i  * DistanceBetweenInstances + InstancePositionLocalOffset;
-
-			FTransform TreadAllignedTransform;
-
-			if (bTreadPivotIsOnPin)
-			{
-				//If this is a first instance, we need to align it with position of last instance as track loops
-				if (i == 0)
-				{
-					float LastInstanceDistance = FMath::Fmod((float)((TreadsOnSide - 1) + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
-					PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(LastInstanceDistance, ESplineCoordinateSpace::Local);
-				}
-
-				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance);
-
-				if (IsValid(TreadsInstancedMeshComponent))
-				{
-					TreadsInstancedMeshComponent->UpdateInstanceTransform(i, TreadAllignedTransform, false, (i + 1 == TreadsOnSide) ? true : false, false);
-				}
-
-				PositionOfPrevInstance = PositionOfCurrentInstance;
-
-				if (bDebugMode)
-				{
-					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
-					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
-				}
-			}
-			else
-			{
-				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline);
-
-				if (IsValid(TreadsInstancedMeshComponent))
-				{
-					TreadsInstancedMeshComponent->UpdateInstanceTransform(i, TreadAllignedTransform, false, (i + 1 == TreadsOnSide) ? true : false, false);
-				}
-				
-				if (bDebugMode)
-				{
-					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
-					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
-				}
-			}
-
-			TreadsTransforms[i] = TreadAllignedTransform;
-		}
-
-	}
 }
 
 //Set default pose for spline and add tread meshes
@@ -278,45 +221,7 @@ void UMMTTrackAnimationComponent::BuildTrackMeshAndSpline()
 			}
 		}
 
-		//Add tread instances
-		if (IsValid(TreadsInstancedMeshComponent))
-		{
-			FVector PositionOfPrevInstance;
-			FVector PositionOfCurrentInstance;
-			for (int32 i = 0; i < TreadsOnSide; i++)
-			{
-				float DistanceAlongSpline = TrackSplineComponent->GetSplineLength() / (float)TreadsOnSide * (float)i;
-
-				FTransform TreadAllignedTransform;
-
-				if (bTreadPivotIsOnPin)
-				{
-					if (i == 0) 
-					{
-						PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(TrackSplineComponent->GetSplineLength() / (float)TreadsOnSide * ((float)TreadsOnSide - 1)
-							,ESplineCoordinateSpace::Local);
-					}
-
-					TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance);
-
-					if (IsValid(TreadsInstancedMeshComponent))
-					{
-						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
-					}
-					PositionOfPrevInstance = PositionOfCurrentInstance;
-				}
-				else
-				{
-					TreadAllignedTransform = GetAllignedTransformAlongSplineUsingTangent(DistanceAlongSpline);
-
-					if (IsValid(TreadsInstancedMeshComponent))
-					{
-						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
-					}
-				}
-				TreadsTransforms.Add(TreadAllignedTransform);
-			}
-		}
+		PlacesInstancesAlongSpline(true);
 	}
 }
 
@@ -411,10 +316,196 @@ void UMMTTrackAnimationComponent::CalculateIntAndFracRotationOfTrack(float Delta
 	}
 }
 
+void UMMTTrackAnimationComponent::PlacesInstancesAlongSpline(bool CreateInstances)
+{
+	//Calculate new position of tread instances
+	if (IsValid(TrackSplineComponent))
+	{
+		float SplineLength = TrackSplineComponent->GetSplineLength();
+
+		//Measure of how much single sprocket tooth have rotated
+		float RotationDivision = TreadFractionalTravel / AngleBetweenSprocketTeeth;
+
+		//Distance can change on every frame as spline stretches
+		float DistanceBetweenInstances = SplineLength / (float)TreadsOnSide;
+		float SecondaryPartOffset = SecondTrackPartOffset;
+
+		//Calculate how much single instance have moved between discrete rotations by sprocket between teeth angle
+		float InstancePositionLerp = FMath::Frac(RotationDivision);
+		float InstancePositionLocalOffset = FMath::Lerp(0.0f, DistanceBetweenInstances, InstancePositionLerp);
+
+		//How many full discrete rotations by sprocket between teeth angle, first instance have moved
+		int FirstInstancePlaceOffset = TreadOffsetCount;
+
+		FVector PositionOfPrevInstance;
+		FVector PositionOfCurrentInstance;
+		FVector PositionOfCurrentSecondaryInstance;
+		for (int32 i = 0; i < TreadsOnSide; i++)
+		{
+			//Move each instance by amount that first instance have traveled + own offset based on index
+			//FMod result to prevent distance along spline getting larger than length of the spline as GetLocationAlongSpline won't return correct result
+			float DistanceAlongSpline = FMath::Fmod((float)(i + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
+
+			FTransform TreadAllignedTransform;
+			FTransform SecondaryTreadAllignedTransform;
+
+
+			if (!bTwoPartsTrack)
+			{
+				//If this is a first instance, we need to align it with position of last instance as track loops
+				if (i == 0)
+				{
+					float LastInstanceDistance = FMath::Fmod((float)((TreadsOnSide - 1) + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
+					PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(LastInstanceDistance, ESplineCoordinateSpace::Local);
+				}
+
+				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentInstance);
+
+				if (IsValid(TreadsInstancedMeshComponent))
+				{
+					if(CreateInstances)
+					{
+						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
+						if(bAnimationLagCompensation)
+						{TreadAllignedTransformPreviousUpdate.Add(TreadAllignedTransform);}
+					}
+					else
+					{
+						if (TreadsInstancedMeshComponent->GetNumRenderInstances() > 0)
+						{
+							TreadsInstancedMeshComponent->UpdateInstanceTransform(i, bAnimationLagCompensation ? TreadAllignedTransformPreviousUpdate [i] : TreadAllignedTransform,
+								false, (i + 1 == TreadsOnSide) ? true : false, false);
+						}
+					}
+				}
+
+				PositionOfPrevInstance = PositionOfCurrentInstance;
+
+				if (bDebugMode)
+				{
+					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
+					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
+				}
+			}
+			else
+			{
+				float SecondaryDistanceAlongSpline = FMath::Fmod((float)(i + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset - SecondaryPartOffset, SplineLength);
+				if (SecondaryDistanceAlongSpline < 0.0)
+				{
+					SecondaryDistanceAlongSpline = SplineLength + SecondaryDistanceAlongSpline;
+				}
+
+				//If this is a first instance, we need to align it with position of last instance as track loops
+				if (i == 0)
+				{
+					float LastInstanceDistance = FMath::Fmod((float)((TreadsOnSide - 1) + FirstInstancePlaceOffset) * DistanceBetweenInstances + InstancePositionLocalOffset, SplineLength);
+					PositionOfPrevInstance = TrackSplineComponent->GetLocationAtDistanceAlongSpline(LastInstanceDistance, ESplineCoordinateSpace::Local);
+				}
+				//First find transform and position of secondary instance as it's connected to previous primary instance
+				SecondaryTreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(SecondaryDistanceAlongSpline, PositionOfPrevInstance, PositionOfCurrentSecondaryInstance);
+				//Primary instance is rotated in direction of secondary instance
+				TreadAllignedTransform = GetAllignedTransformAlongSplineUsingPosition(DistanceAlongSpline, PositionOfCurrentSecondaryInstance, PositionOfCurrentInstance);
+
+				if (IsValid(TreadsInstancedMeshComponent) & IsValid(SecondTreadsInstancedMeshComponent))
+				{
+					if (CreateInstances)
+					{
+						SecondTreadsInstancedMeshComponent->AddInstance(SecondaryTreadAllignedTransform);
+						TreadsInstancedMeshComponent->AddInstance(TreadAllignedTransform);
+						
+						if (bAnimationLagCompensation)
+						{
+							SecondaryTreadAllignedTransformPreviousUpdate.Add(SecondaryTreadAllignedTransform);
+							TreadAllignedTransformPreviousUpdate.Add(TreadAllignedTransform);
+						}
+					}
+					else
+					{
+						if(SecondTreadsInstancedMeshComponent->GetNumRenderInstances() > 0)
+						{SecondTreadsInstancedMeshComponent->UpdateInstanceTransform(i, bAnimationLagCompensation ? SecondaryTreadAllignedTransformPreviousUpdate[i] : SecondaryTreadAllignedTransform,
+							false, (i + 1 == TreadsOnSide) ? true : false, false);}
+
+						if(TreadsInstancedMeshComponent->GetNumRenderInstances() > 0)
+						{TreadsInstancedMeshComponent->UpdateInstanceTransform(i, bAnimationLagCompensation ? TreadAllignedTransformPreviousUpdate[i] : TreadAllignedTransform,
+							false, (i + 1 == TreadsOnSide) ? true : false, false);}
+					}
+				}
+
+				PositionOfPrevInstance = PositionOfCurrentInstance;
+
+				if (bDebugMode)
+				{
+					FTransform ReferenceFrameTransform = UMMTBPFunctionLibrary::MMTGetTransformComponent(TreadsInstancedMeshComponent, NAME_None);
+					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(TreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::White, 0.0f, false);
+					DrawDebugString(GetWorld(), ReferenceFrameTransform.TransformPosition(SecondaryTreadAllignedTransform.GetLocation()), FString::FromInt(i), nullptr, FColor::Cyan, 0.0f, false);
+				}
+
+			}
+
+			//Store calculated transforms to retrieve them later if user needs them
+			if (CreateInstances)
+			{
+				TreadsTransforms.Add(TreadAllignedTransform);
+
+				if (bTwoPartsTrack)
+				{
+					SecondaryTreadsTransforms.Add(SecondaryTreadAllignedTransform);
+				}
+			}
+			else
+			{
+					
+				if (bAnimationLagCompensation)
+				{
+					if (TreadsTransforms.IsValidIndex(i) & TreadAllignedTransformPreviousUpdate.IsValidIndex(i))
+					{
+						TreadsTransforms[i] = TreadAllignedTransformPreviousUpdate[i];
+						
+						if (bTwoPartsTrack & SecondaryTreadsTransforms.IsValidIndex(i) & SecondaryTreadAllignedTransformPreviousUpdate.IsValidIndex(i))
+						{
+							SecondaryTreadsTransforms[i] = SecondaryTreadAllignedTransformPreviousUpdate[i];
+						}
+					}
+					
+					if(TreadAllignedTransformPreviousUpdate.IsValidIndex(i))
+					{
+						TreadAllignedTransformPreviousUpdate[i] = TreadAllignedTransform;
+					}
+					
+					if (bTwoPartsTrack & SecondaryTreadAllignedTransformPreviousUpdate.IsValidIndex(i))
+					{
+						SecondaryTreadAllignedTransformPreviousUpdate[i] = SecondaryTreadAllignedTransform;
+					}
+
+				}
+				else 
+				{
+					if (TreadsTransforms.IsValidIndex(i))
+					{
+						TreadsTransforms[i] = TreadAllignedTransform;
+					}
+
+					if(bTwoPartsTrack & SecondaryTreadsTransforms.IsValidIndex(i))
+					{ 
+						SecondaryTreadsTransforms[i] = SecondaryTreadAllignedTransform;
+					}
+				}
+			}
+		}
+
+	}
+};
+
 TArray<FTransform> UMMTTrackAnimationComponent::GetTreadsTransformArray()
 {
 	return TreadsTransforms;
 }
+
+TArray<FTransform> UMMTTrackAnimationComponent::GetSecondaryTreadsTransformArray()
+{
+	return SecondaryTreadsTransforms;
+}
+
 
 float UMMTTrackAnimationComponent::GetTrackAngularPosition()
 {
