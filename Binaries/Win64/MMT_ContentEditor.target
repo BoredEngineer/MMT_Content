@@ -2,13 +2,13 @@
 	"TargetName" : "MMT_ContentEditor",
 	"Platform" : "Win64",
 	"Configuration" : "Development",
-	"BuildId" : "56159e68-834f-4645-a65d-2cba3b44d6d5",
+	"BuildId" : "57a7597a-e20b-4bfe-a67a-07b0c911b021",
 	"Version" : 
 	{
 		"MajorVersion" : 4,
 		"MinorVersion" : 15,
-		"PatchVersion" : 1,
-		"Changelist" : 3348071,
+		"PatchVersion" : 2,
+		"Changelist" : 3416026,
 		"CompatibleChangelist" : 3299760,
 		"IsLicenseeVersion" : 0,
 		"IsPromotedBuild" : 1,
