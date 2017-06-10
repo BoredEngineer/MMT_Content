@@ -4,7 +4,7 @@ using UnrealBuildTool;
 
 public class MMT_Content : ModuleRules
 {
-	public MMT_Content(TargetInfo Target)
+	public MMT_Content(ReadOnlyTargetRules Target) : base (Target)
 	{
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore" });
 

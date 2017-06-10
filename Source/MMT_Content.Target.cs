@@ -5,21 +5,9 @@ using System.Collections.Generic;
 
 public class MMT_ContentTarget : TargetRules
 {
-	public MMT_ContentTarget(TargetInfo Target)
+	public MMT_ContentTarget(TargetInfo Target) : base (Target)
 	{
 		Type = TargetType.Game;
-	}
-
-	//
-	// TargetRules interface.
-	//
-
-	public override void SetupBinaries(
-		TargetInfo Target,
-		ref List<UEBuildBinaryConfiguration> OutBuildBinaryConfigurations,
-		ref List<string> OutExtraModuleNames
-		)
-	{
-		OutExtraModuleNames.AddRange( new string[] { "MMT_Content" } );
+		ExtraModuleNames.Add("MMT_Content");
 	}
 }
