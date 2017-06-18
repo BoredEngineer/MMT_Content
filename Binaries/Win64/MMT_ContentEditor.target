@@ -784,6 +784,36 @@
 			"IsPrecompiled" : true
 		},
 		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Binaries/Win64/UE4Editor-HoudiniEngineRuntime.dll",
+			"Type" : "DynamicLibrary",
+			"IsPrecompiled" : true
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Binaries/Win64/UE4Editor-HoudiniEngineRuntime.pdb",
+			"Type" : "SymbolFile",
+			"IsPrecompiled" : true
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Intermediate/Build/Win64/UE4Editor/Development/UE4Editor-HoudiniEngineRuntime.lib",
+			"Type" : "ImportLibrary",
+			"IsPrecompiled" : true
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Binaries/Win64/UE4Editor-HoudiniEngineEditor.dll",
+			"Type" : "DynamicLibrary",
+			"IsPrecompiled" : true
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Binaries/Win64/UE4Editor-HoudiniEngineEditor.pdb",
+			"Type" : "SymbolFile",
+			"IsPrecompiled" : true
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/Intermediate/Build/Win64/UE4Editor/Development/UE4Editor-HoudiniEngineEditor.lib",
+			"Type" : "ImportLibrary",
+			"IsPrecompiled" : true
+		},
+		{
 			"Path" : "$(EngineDir)/Plugins/Runtime/ImmediatePhysics/Binaries/Win64/UE4Editor-ImmediatePhysics.dll",
 			"Type" : "DynamicLibrary",
 			"IsPrecompiled" : true
@@ -5711,6 +5741,10 @@
 		},
 		{
 			"Path" : "$(EngineDir)/Plugins/Runtime/GearVR/GearVR.uplugin",
+			"Type" : "UFS"
+		},
+		{
+			"Path" : "$(EngineDir)/Plugins/Runtime/HoudiniEngine/HoudiniEngine.uplugin",
 			"Type" : "UFS"
 		},
 		{
