@@ -1,7 +1,7 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
 #include "MMTPawn.h"
+//#include "MMTPluginPCH.h"
 
 // Sets default values
 AMMTPawn::AMMTPawn()

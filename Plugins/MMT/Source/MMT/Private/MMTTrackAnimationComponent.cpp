@@ -1,8 +1,9 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
-#include "MMTBPFunctionLibrary.h"
 #include "MMTTrackAnimationComponent.h"
+//#include "MMTPluginPCH.h"
+#include "MMTBPFunctionLibrary.h"
+
 
 //Set default values
 UMMTTrackAnimationComponent::UMMTTrackAnimationComponent()

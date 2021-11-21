@@ -1,8 +1,7 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
 #include "MMTBPFunctionLibrary.h"
-
+//#include "MMTPluginPCH.h"
 
 //For UE4 Profiler ~ Stat
 //DECLARE_CYCLE_STAT(TEXT("MMT ~ Get Transform Component"), STAT_MMTGetTransformComponent, STATGROUP_MMT);
@@ -140,7 +139,9 @@ UMeshComponent* UMMTBPFunctionLibrary::GetMeshComponentReferenceByName(UActorCom
 	if (IsValid(Target))
 	{
 		AActor* Owner = Target->GetOwner();
-		TArray<UActorComponent*> FoundComponents = Owner->GetComponentsByClass(UMeshComponent::StaticClass());
+		
+		TArray<UMeshComponent*> FoundComponents;
+		Owner->GetComponents(FoundComponents);
 
 		UMeshComponent* Result;
 
@@ -165,7 +166,9 @@ USplineComponent* UMMTBPFunctionLibrary::GetSplineComponentReferenceByName(UActo
 	if (IsValid(Target))
 	{
 		AActor* Owner = Target->GetOwner();
-		TArray<UActorComponent*> FoundComponents = Owner->GetComponentsByClass(USplineComponent::StaticClass());
+
+		TArray<UMeshComponent*> FoundComponents;
+		Owner->GetComponents(FoundComponents);
 
 		USplineComponent* Result;
 
@@ -190,7 +193,9 @@ UInstancedStaticMeshComponent* UMMTBPFunctionLibrary::GetInstancedStaticMeshComp
 	if (IsValid(Target))
 	{
 		AActor* Owner = Target->GetOwner();
-		TArray<UActorComponent*> FoundComponents = Owner->GetComponentsByClass(UInstancedStaticMeshComponent::StaticClass());
+
+		TArray<UInstancedStaticMeshComponent*> FoundComponents;
+		Owner->GetComponents(FoundComponents);
 
 		UInstancedStaticMeshComponent* Result;
 

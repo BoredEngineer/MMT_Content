@@ -6,7 +6,7 @@ public class MMT : ModuleRules
 	public MMT(ReadOnlyTargetRules Target) : base (Target)
     {
         PrivateIncludePaths.AddRange(new string[] { "MMT/Private" });
-        PrivatePCHHeaderFile = "Private/MMTPluginPCH.h";
+        // PrivatePCHHeaderFile = "Private/MMTPluginPCH.h";
 
         PublicDependencyModuleNames.AddRange(
 		new string[] { 
@@ -20,7 +20,8 @@ public class MMT : ModuleRules
 				"Slate",
 				"SlateCore",
 				"PhysX",
-                "APEX"
+                "APEX",
+				"PhysicsCore"
             }
 		);
     }
