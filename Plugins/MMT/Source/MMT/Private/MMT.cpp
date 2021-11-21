@@ -1,9 +1,7 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
 #include "MMT.h"
-
-
+//#include "MMTPluginPCH.h"
 
 void MMTImpl::StartupModule()
 {

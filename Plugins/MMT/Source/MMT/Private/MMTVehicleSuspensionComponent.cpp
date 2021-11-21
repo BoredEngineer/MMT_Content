@@ -1,8 +1,9 @@
 //Copyright(c) 2017 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
-#include "MMTBPFunctionLibrary.h"
 #include "MMTVehicleSuspensionComponent.h"
+//#include "MMTPluginPCH.h"
+#include "MMTBPFunctionLibrary.h"
+
 
 
 // Sets default values for this component's properties

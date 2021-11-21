@@ -1,9 +1,11 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
-#include "Runtime/Engine/Classes/PhysicsEngine/PhysicsSettings.h"
-#include "MMTBPFunctionLibrary.h"
 #include "MMTFrictionComponent.h"
+//#include "MMTPluginPCH.h"
+#include "Runtime/Engine/Classes/PhysicsEngine/PhysicsSettings.h"
+#include "PhysicalMaterials/PhysicalMaterial.h"
+#include "MMTBPFunctionLibrary.h"
+#include "DrawDebugHelpers.h"
 
 //For UE4 Profiler ~ Stat
 //DECLARE_CYCLE_STAT(TEXT("MMT ~ Register friction point"), STAT_MMTRegisterFrictionPoint, STATGROUP_MMT);

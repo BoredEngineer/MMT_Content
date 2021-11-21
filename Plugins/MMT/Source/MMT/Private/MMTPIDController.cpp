@@ -1,8 +1,7 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
 #include "MMTPIDController.h"
-
+//#include "MMTPluginPCH.h"
 
 // Sets default values
 UMMTPIDController::UMMTPIDController()

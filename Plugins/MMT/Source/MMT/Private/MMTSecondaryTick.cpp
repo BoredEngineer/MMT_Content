@@ -1,9 +1,8 @@
 //Copyright(c) 2016 Viktor Kuropiatnyk "BoredEngineer"
 
-#include "MMTPluginPCH.h"
-#include "MMTPawn.h"
 #include "MMTSecondaryTick.h"
-
+//#include "MMTPluginPCH.h"
+#include "MMTPawn.h"
 
 void FSecondaryTickFunction::ExecuteTick( float DeltaTime, ELevelTick TickType, ENamedThreads::Type CurrentThread, const FGraphEventRef& CompletionGraphEvent)
 {
