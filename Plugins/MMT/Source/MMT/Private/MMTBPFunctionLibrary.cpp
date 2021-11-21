@@ -167,7 +167,7 @@ USplineComponent* UMMTBPFunctionLibrary::GetSplineComponentReferenceByName(UActo
 	{
 		AActor* Owner = Target->GetOwner();
 
-		TArray<UMeshComponent*> FoundComponents;
+		TArray<USplineComponent*> FoundComponents;
 		Owner->GetComponents(FoundComponents);
 
 		USplineComponent* Result;
